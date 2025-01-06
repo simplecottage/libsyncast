@@ -1,0 +1,57 @@
+# compiled binary
+libsyncast/target/
+
+# rust/cargo files
+**/*.rs.bk
+Cargo.lock
+/.cargo
+
+# debug files
+debug.log
+
+# editor/ide files
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# os-specific files
+.DS_Store
+Thumbs.db
+
+# git-specific files
+*.orig
+*.rej
+
+# test artifacts
+/tests_output/
+*.profdata
+
+# coverage reports
+coverage/
+
+# logs and temporary files
+*.log
+*.tmp
+*.bak
+*.old
+
+# build tool files (optional)
+Makefile
+*.make
+build/
+
+# output of documentation generation
+/target/doc/
+
+# rustfmt/clang-format backup files
+**/*.rs.bk
+
+# rust-analyzer files
+.rust-analyzer
+
+# cbindgen-generated bindings
+bindings.rs
+
+feed.txt
