@@ -111,18 +111,6 @@ fn main() -> Result<()> {
                     KeyCode::Char('q') => {
                         break 'mainloop;
                     }
-                    KeyCode::Right => {
-                        if selected_feed < feed_data.len().saturating_sub(1) {
-                            selected_feed += 1;
-                            selected_item = 0;
-                        }
-                    }
-                    KeyCode::Left => {
-                        if selected_feed > 0 {
-                            selected_feed -= 1;
-                            selected_item = 0;
-                        }
-                    }
                     KeyCode::Down => {
                         if let Some(feed) = feed_data.get(selected_feed) {
                             if selected_item < feed.items.len().saturating_sub(1) {
