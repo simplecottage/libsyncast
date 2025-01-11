@@ -111,13 +111,13 @@ fn main() -> Result<()> {
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
-                    KeyCode::Char('l') => {
+                    KeyCode::Char("UP") => {
                         if app_state.selected_folder < app_state.folders.len() - 1 {
                             app_state.selected_folder += 1;
                             app_state.selected_feed = 0;
                         }
                     }
-                    KeyCode::Char('h') => {
+                    KeyCode::Char("DOWN") => {
                         if app_state.selected_folder > 0 {
                             app_state.selected_folder -= 1;
                             app_state.selected_feed = 0;
