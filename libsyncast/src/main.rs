@@ -20,7 +20,6 @@ use crossterm::{
 };
 use reqwest::blocking::Client;
 use feed_rs::parser;
-use anyhow::{Result, anyhow};
 
 const FEED_CONF: &str = "feeds.txt";
 
