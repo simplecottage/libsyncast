@@ -1,6 +1,6 @@
 use std::{
     fs::{File, OpenOptions},
-    io::{BufRead, BufReader, Write, Cursor},
+    io::{BufRead, BufReader, Write},
 };
 
 use ratatui::{
@@ -17,10 +17,9 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use reqwest::blocking::Client;
-use feed_rs::parser;
 
 const FEED_CONF: &str = "feeds.txt";
+const HISTORY_FILE: &str = "history.txt";
 
 #[derive(Debug)]
 struct RssItem {
@@ -36,15 +35,25 @@ struct Folder {
 }
 
 #[derive(Debug)]
+struct HistoryItem {
+    title: String,
+    url: String,
+}
+
+#[derive(Debug)]
 struct AppState {
     folders: Vec<Folder>,
     selected_folder: usize,
+    history: Vec<HistoryItem>,
+    show_history: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app_state = AppState {
         folders: load_folders_conf()?,
         selected_folder: 0,
+        history: load_history()?,
+        show_history: false,
     };
 
     enable_raw_mode()?;
@@ -61,37 +70,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
                 .split(size);
 
-            let folder_items: Vec<ListItem> = app_state
-                .folders
-                .iter()
-                .enumerate()
-                .map(|(i, folder)| {
-                    let style = if i == app_state.selected_folder {
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default()
-                    };
-                    ListItem::new(Span::styled(folder.name.clone(), style))
-                })
-                .collect();
+            if app_state.show_history {
+                let history_items: Vec<ListItem> = app_state
+                    .history
+                    .iter()
+                    .map(|item| ListItem::new(format!("{} - {}", item.title, item.url)))
+                    .collect();
 
-            let folder_list = List::new(folder_items)
-                .block(Block::default().borders(Borders::ALL).title("Folders"));
-            f.render_widget(folder_list, chunks[0]);
+                let history_list = List::new(history_items)
+                    .block(Block::default().borders(Borders::ALL).title("History"));
+                f.render_widget(history_list, chunks[0]);
+            } else {
+                let folder_items: Vec<ListItem> = app_state
+                    .folders
+                    .iter()
+                    .enumerate()
+                    .map(|(i, folder)| {
+                        let style = if i == app_state.selected_folder {
+                            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default()
+                        };
+                        ListItem::new(Span::styled(folder.name.clone(), style))
+                    })
+                    .collect();
+
+                let folder_list = List::new(folder_items)
+                    .block(Block::default().borders(Borders::ALL).title("Folders"));
+                f.render_widget(folder_list, chunks[0]);
+            }
         })?;
 
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('j') | KeyCode::Down => {
-                        if app_state.selected_folder < app_state.folders.len() - 1 {
+                        if !app_state.show_history
+                            && app_state.selected_folder < app_state.folders.len() - 1
+                        {
                             app_state.selected_folder += 1;
                         }
                     }
                     KeyCode::Char('k') | KeyCode::Up => {
-                        if app_state.selected_folder > 0 {
+                        if !app_state.show_history && app_state.selected_folder > 0 {
                             app_state.selected_folder -= 1;
                         }
+                    }
+                    KeyCode::Char('h') => {
+                        app_state.show_history = !app_state.show_history;
                     }
                     KeyCode::Char('q') => break 'mainloop,
                     _ => {}
@@ -141,4 +167,36 @@ fn load_folders_conf() -> Result<Vec<Folder>, Box<dyn std::error::Error>> {
     }
 
     Ok(folders)
+}
+
+fn load_history() -> Result<Vec<HistoryItem>, Box<dyn std::error::Error>> {
+    let file = File::open(HISTORY_FILE).unwrap_or_else(|_| File::create(HISTORY_FILE).unwrap());
+    let reader = BufReader::new(file);
+
+    let history: Vec<HistoryItem> = reader
+        .lines()
+        .filter_map(|line| line.ok())
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.splitn(2, " - ").collect();
+            if parts.len() == 2 {
+                Some(HistoryItem {
+                    title: parts[0].to_string(),
+                    url: parts[1].to_string(),
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(history)
+}
+
+fn save_to_history(item: &HistoryItem) -> Result<(), Box<dyn std::error::Error>> {
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(HISTORY_FILE)?;
+    writeln!(file, "{} - {}", item.title, item.url)?;
+    Ok(())
 }
