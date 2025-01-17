@@ -191,12 +191,3 @@ fn load_history() -> Result<Vec<HistoryItem>, Box<dyn std::error::Error>> {
 
     Ok(history)
 }
-
-fn save_to_history(item: &HistoryItem) -> Result<(), Box<dyn std::error::Error>> {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(HISTORY_FILE)?;
-    writeln!(file, "{} - {}", item.title, item.url)?;
-    Ok(())
-}
