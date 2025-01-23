@@ -168,26 +168,3 @@ fn load_folders_conf() -> Result<Vec<Folder>, Box<dyn std::error::Error>> {
 
     Ok(folders)
 }
-
-fn load_history() -> Result<Vec<HistoryItem>, Box<dyn std::error::Error>> {
-    let file = File::open(HISTORY_FILE).unwrap_or_else(|_| File::create(HISTORY_FILE).unwrap());
-    let reader = BufReader::new(file);
-
-    let history: Vec<HistoryItem> = reader
-        .lines()
-        .filter_map(|line| line.ok())
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.splitn(2, " - ").collect();
-            if parts.len() == 2 {
-                Some(HistoryItem {
-                    title: parts[0].to_string(),
-                    url: parts[1].to_string(),
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(history)
-}
