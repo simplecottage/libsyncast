@@ -20,6 +20,7 @@ use crossterm::{
 
 const FEED_CONF: &str = "feeds.txt";
 const HISTORY_FILE: &str = "history.txt";
+const FAVORITES_FILE: &str = "favorites.txt";
 
 #[derive(Debug)]
 struct RssItem {
@@ -41,11 +42,19 @@ struct HistoryItem {
 }
 
 #[derive(Debug)]
+struct FavoriteItem {
+    title: String,
+    url: String,
+}
+
+#[derive(Debug)]
 struct AppState {
     folders: Vec<Folder>,
     selected_folder: usize,
     history: Vec<HistoryItem>,
+    favorites: Vec<FavoriteItem>,
     show_history: bool,
+    show_favorites: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -53,7 +62,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         folders: load_folders_conf()?,
         selected_folder: 0,
         history: load_history()?,
+        favorites: load_favorites()?,
         show_history: false,
+        show_favorites: false,
     };
 
     enable_raw_mode()?;
@@ -70,7 +81,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
                 .split(size);
 
-            if app_state.show_history {
+            if app_state.show_favorites {
+                let favorite_items: Vec<ListItem> = app_state
+                    .favorites
+                    .iter()
+                    .map(|item| ListItem::new(format!("{} - {}", item.title, item.url)))
+                    .collect();
+
+                let favorites_list = List::new(favorite_items)
+                    .block(Block::default().borders(Borders::ALL).title("Favorites"));
+                f.render_widget(favorites_list, chunks[0]);
+            } else if app_state.show_history {
                 let history_items: Vec<ListItem> = app_state
                     .history
                     .iter()
@@ -106,18 +127,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match key.code {
                     KeyCode::Char('j') | KeyCode::Down => {
                         if !app_state.show_history
+                            && !app_state.show_favorites
                             && app_state.selected_folder < app_state.folders.len() - 1
                         {
                             app_state.selected_folder += 1;
                         }
                     }
                     KeyCode::Char('k') | KeyCode::Up => {
-                        if !app_state.show_history && app_state.selected_folder > 0 {
+                        if !app_state.show_history
+                            && !app_state.show_favorites
+                            && app_state.selected_folder > 0
+                        {
                             app_state.selected_folder -= 1;
                         }
                     }
                     KeyCode::Char('h') => {
                         app_state.show_history = !app_state.show_history;
+                        app_state.show_favorites = false;
+                    }
+                    KeyCode::Char('F') => {
+                        app_state.show_favorites = !app_state.show_favorites;
+                        app_state.show_history = false;
+                    }
+                    KeyCode::Char('f') => {
+                        if app_state.show_history {
+                            if let Some(history_item) = app_state.history.get(app_state.selected_folder) {
+                                save_to_favorites(&history_item.title, &history_item.url)?;
+                                app_state.favorites.push(FavoriteItem {
+                                    title: history_item.title.clone(),
+                                    url: history_item.url.clone(),
+                                });
+                            }
+                        }
                     }
                     KeyCode::Char('q') => break 'mainloop,
                     _ => {}
@@ -167,4 +208,56 @@ fn load_folders_conf() -> Result<Vec<Folder>, Box<dyn std::error::Error>> {
     }
 
     Ok(folders)
+}
+
+fn load_history() -> Result<Vec<HistoryItem>, Box<dyn std::error::Error>> {
+    let file = File::open(HISTORY_FILE).unwrap_or_else(|_| File::create(HISTORY_FILE).unwrap());
+    let reader = BufReader::new(file);
+    Ok(reader
+        .lines()
+        .filter_map(|line| {
+            if let Ok(line) = line {
+                let parts: Vec<&str> = line.splitn(2, ' ').collect();
+                if parts.len() == 2 {
+                    Some(HistoryItem {
+                        title: parts[0].to_string(),
+                        url: parts[1].to_string(),
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect())
+}
+
+fn load_favorites() -> Result<Vec<FavoriteItem>, Box<dyn std::error::Error>> {
+    let file = File::open(FAVORITES_FILE).unwrap_or_else(|_| File::create(FAVORITES_FILE).unwrap());
+    let reader = BufReader::new(file);
+    Ok(reader
+        .lines()
+        .filter_map(|line| {
+            if let Ok(line) = line {
+                let parts: Vec<&str> = line.splitn(2, ' ').collect();
+                if parts.len() == 2 {
+                    Some(FavoriteItem {
+                        title: parts[0].to_string(),
+                        url: parts[1].to_string(),
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect())
+}
+
+fn save_to_favorites(title: &str, url: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut file = OpenOptions::new().append(true).open(FAVORITES_FILE)?;
+    writeln!(file, "{} {}", title, url)?;
+    Ok(())
 }
