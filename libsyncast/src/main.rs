@@ -55,6 +55,7 @@ struct AppState {
     favorites: Vec<FavoriteItem>,
     show_history: bool,
     show_favorites: bool,
+    selected_favorite: usize,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -65,6 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         favorites: load_favorites()?,
         show_history: false,
         show_favorites: false,
+        selected_favorite: 0,
     };
 
     enable_raw_mode()?;
@@ -85,7 +87,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let favorite_items: Vec<ListItem> = app_state
                     .favorites
                     .iter()
-                    .map(|item| ListItem::new(format!("{} - {}", item.title, item.url)))
+                    .enumerate()
+                    .map(|(i, item)| {
+                        let style = if i == app_state.selected_favorite {
+                            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default()
+                        };
+                        ListItem::new(Span::styled(format!("{} - {}", item.title, item.url), style))
+                    })
                     .collect();
 
                 let favorites_list = List::new(favorite_items)
@@ -126,18 +136,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('j') | KeyCode::Down => {
-                        if !app_state.show_history
-                            && !app_state.show_favorites
+                        if app_state.show_favorites {
+                            if app_state.selected_favorite < app_state.favorites.len() - 1 {
+                                app_state.selected_favorite += 1;
+                            }
+                        } else if !app_state.show_history
                             && app_state.selected_folder < app_state.folders.len() - 1
                         {
                             app_state.selected_folder += 1;
                         }
                     }
                     KeyCode::Char('k') | KeyCode::Up => {
-                        if !app_state.show_history
-                            && !app_state.show_favorites
-                            && app_state.selected_folder > 0
-                        {
+                        if app_state.show_favorites {
+                            if app_state.selected_favorite > 0 {
+                                app_state.selected_favorite -= 1;
+                            }
+                        } else if !app_state.show_history && app_state.selected_folder > 0 {
                             app_state.selected_folder -= 1;
                         }
                     }
