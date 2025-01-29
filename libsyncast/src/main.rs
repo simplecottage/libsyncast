@@ -20,7 +20,6 @@ use crossterm::{
 
 const FEED_CONF: &str = "feeds.txt";
 const HISTORY_FILE: &str = "history.txt";
-const FAVORITES_FILE: &str = "favorites.txt";
 
 #[derive(Debug)]
 struct RssItem {
@@ -268,10 +267,4 @@ fn load_favorites() -> Result<Vec<FavoriteItem>, Box<dyn std::error::Error>> {
             }
         })
         .collect())
-}
-
-fn save_to_favorites(title: &str, url: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let mut file = OpenOptions::new().append(true).open(FAVORITES_FILE)?;
-    writeln!(file, "{} {}", title, url)?;
-    Ok(())
 }
