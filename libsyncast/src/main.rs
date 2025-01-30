@@ -41,12 +41,6 @@ struct HistoryItem {
 }
 
 #[derive(Debug)]
-struct FavoriteItem {
-    title: String,
-    url: String,
-}
-
-#[derive(Debug)]
 struct AppState {
     folders: Vec<Folder>,
     selected_folder: usize,
