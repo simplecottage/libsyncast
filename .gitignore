@@ -42,9 +42,6 @@ Makefile
 *.make
 build/
 
-# output of documentation generation
-/target/doc/
-
 # rustfmt/clang-format backup files
 **/*.rs.bk
 
