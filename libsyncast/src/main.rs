@@ -3,23 +3,12 @@ use std::{
     io::{BufRead, BufReader, Write},
 };
 
-use ratatui::{
-    backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, Borders, List, ListItem},
-    Terminal,
-};
-
-use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
+mod ui;
+use ui::UI;
 
 const FEED_CONF: &str = "feeds.txt";
 const HISTORY_FILE: &str = "history.txt";
+const FAVORITES_FILE: &str = "favorites.txt";
 
 #[derive(Debug)]
 struct RssItem {
@@ -29,26 +18,32 @@ struct RssItem {
 }
 
 #[derive(Debug)]
-struct Folder {
+pub struct Folder {
     name: String,
     feeds: Vec<String>,
 }
 
 #[derive(Debug)]
-struct HistoryItem {
+pub struct HistoryItem {
     title: String,
     url: String,
 }
 
 #[derive(Debug)]
-struct AppState {
-    folders: Vec<Folder>,
-    selected_folder: usize,
-    history: Vec<HistoryItem>,
-    favorites: Vec<FavoriteItem>,
-    show_history: bool,
-    show_favorites: bool,
-    selected_favorite: usize,
+pub struct FavoriteItem {
+    title: String,
+    url: String,
+}
+
+#[derive(Debug)]
+pub struct AppState {
+    pub folders: Vec<Folder>,
+    pub selected_folder: usize,
+    pub history: Vec<HistoryItem>,
+    pub favorites: Vec<FavoriteItem>,
+    pub show_history: bool,
+    pub show_favorites: bool,
+    pub selected_favorite: usize,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -62,121 +57,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         selected_favorite: 0,
     };
 
-    enable_raw_mode()?;
-    let mut stdout = std::io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    // Initialize UI
+    let mut ui = UI::new()?;
 
     'mainloop: loop {
-        terminal.draw(|f| {
-            let size = f.size();
-            let chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
-                .split(size);
+        // Draw UI based on current state
+        ui.draw(&app_state)?;
 
-            if app_state.show_favorites {
-                let favorite_items: Vec<ListItem> = app_state
-                    .favorites
-                    .iter()
-                    .enumerate()
-                    .map(|(i, item)| {
-                        let style = if i == app_state.selected_favorite {
-                            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                        } else {
-                            Style::default()
-                        };
-                        ListItem::new(Span::styled(format!("{} - {}", item.title, item.url), style))
-                    })
-                    .collect();
+        // Handle user input
+        // Returns true if user wants to quit
+        if ui.handle_events(&mut app_state)? {
+            break 'mainloop;
+        }
 
-                let favorites_list = List::new(favorite_items)
-                    .block(Block::default().borders(Borders::ALL).title("Favorites"));
-                f.render_widget(favorites_list, chunks[0]);
-            } else if app_state.show_history {
-                let history_items: Vec<ListItem> = app_state
-                    .history
-                    .iter()
-                    .map(|item| ListItem::new(format!("{} - {}", item.title, item.url)))
-                    .collect();
-
-                let history_list = List::new(history_items)
-                    .block(Block::default().borders(Borders::ALL).title("History"));
-                f.render_widget(history_list, chunks[0]);
-            } else {
-                let folder_items: Vec<ListItem> = app_state
-                    .folders
-                    .iter()
-                    .enumerate()
-                    .map(|(i, folder)| {
-                        let style = if i == app_state.selected_folder {
-                            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                        } else {
-                            Style::default()
-                        };
-                        ListItem::new(Span::styled(folder.name.clone(), style))
-                    })
-                    .collect();
-
-                let folder_list = List::new(folder_items)
-                    .block(Block::default().borders(Borders::ALL).title("Folders"));
-                f.render_widget(folder_list, chunks[0]);
-            }
-        })?;
-
-        if event::poll(std::time::Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        if app_state.show_favorites {
-                            if app_state.selected_favorite < app_state.favorites.len() - 1 {
-                                app_state.selected_favorite += 1;
-                            }
-                        } else if !app_state.show_history
-                            && app_state.selected_folder < app_state.folders.len() - 1
-                        {
-                            app_state.selected_folder += 1;
-                        }
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        if app_state.show_favorites {
-                            if app_state.selected_favorite > 0 {
-                                app_state.selected_favorite -= 1;
-                            }
-                        } else if !app_state.show_history && app_state.selected_folder > 0 {
-                            app_state.selected_folder -= 1;
-                        }
-                    }
-                    KeyCode::Char('h') => {
-                        app_state.show_history = !app_state.show_history;
-                        app_state.show_favorites = false;
-                    }
-                    KeyCode::Char('F') => {
-                        app_state.show_favorites = !app_state.show_favorites;
-                        app_state.show_history = false;
-                    }
-                    KeyCode::Char('f') => {
-                        if app_state.show_history {
-                            if let Some(history_item) = app_state.history.get(app_state.selected_folder) {
-                                save_to_favorites(&history_item.title, &history_item.url)?;
-                                app_state.favorites.push(FavoriteItem {
-                                    title: history_item.title.clone(),
-                                    url: history_item.url.clone(),
-                                });
-                            }
-                        }
-                    }
-                    KeyCode::Char('q') => break 'mainloop,
-                    _ => {}
-                }
+        // Handle specific application actions
+        if app_state.show_history && ui.handle_favorite_action(&mut app_state)? {
+            // Handle adding an item to favorites
+            if let Some(history_item) = app_state.history.get(app_state.selected_folder) {
+                save_to_favorites(&history_item.title, &history_item.url)?;
+                app_state.favorites.push(FavoriteItem {
+                    title: history_item.title.clone(),
+                    url: history_item.url.clone(),
+                });
             }
         }
     }
 
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
+    // Clean up UI
+    ui.cleanup()?;
     Ok(())
 }
 
@@ -261,4 +169,14 @@ fn load_favorites() -> Result<Vec<FavoriteItem>, Box<dyn std::error::Error>> {
             }
         })
         .collect())
+}
+
+fn save_to_favorites(title: &str, url: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(FAVORITES_FILE)?;
+    
+    writeln!(file, "{} {}", title, url)?;
+    Ok(())
 }
