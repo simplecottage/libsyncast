@@ -24,13 +24,6 @@ Thumbs.db
 *.orig
 *.rej
 
-# test artifacts
-/tests_output/
-*.profdata
-
-# coverage reports
-coverage/
-
 # logs and temporary files
 *.log
 *.tmp
